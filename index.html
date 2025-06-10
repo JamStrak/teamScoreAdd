@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>榜一大哥诞生器</title>
+    <style>
+        :root {
+            --bg-color: #f4f7f9;
+            --card-bg: #ffffff;
+            --text-color: #2c3e50;
+            --primary-color: #3498db;
+            --danger-color: #e74c3c;
+            --success-color: #2ecc71;
+            --warning-color: #f1c40f;
+            --nemesis-color: #9b59b6;
+            --team-a-bg: rgba(52, 152, 219, 0.1);
+            --team-a-primary: #3498db;
+            --team-b-bg: rgba(46, 204, 113, 0.1);
+            --team-b-primary: #2ecc71;
+            --rank1-bg: #fffbeb;
+            --rank1-color: #d4af37;
+            --border-radius: 14px;
+            --shadow: 0 4px 15px rgba(0, 0, 0, 0.07);
+            --transition-speed: 0.3s;
+        }
+        *, *::before, *::after { box-sizing: border-box; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes score-pop { 0% { transform: scale(1); } 50% { transform: scale(1.3); color: var(--warning-color); } 100% { transform: scale(1); } }
+        @keyframes shake-name { 0%{transform:translateX(0)}10%,30%,50%,70%,90%{transform:translateX(-3px)}20%,40%,60%,80%{transform:translateX(3px)}100%{transform:translateX(0)} }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--bg-color); color: var(--text-color); margin: 0;
+            padding: 2vh 4vw;
+            -webkit-tap-highlight-color: transparent; overflow-x: hidden; min-height: 100vh;
+        }
+        .container { max-width: 500px; margin: 0 auto; display: flex; flex-direction: column; height: calc(100vh - 4vh); }
+        h1 { text-align: center; color: var(--primary-color); margin: 0 0 2vh; font-size: clamp(22px, 5vh, 28px); }
+        
+        .main-controls { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 2vh; }
+        .btn { padding: clamp(10px, 2.5vh, 14px) 10px; font-size: 14px; font-weight: bold; border: none; border-radius: var(--border-radius); cursor: pointer; transition: all var(--transition-speed) ease; background-color: var(--card-bg); color: var(--primary-color); box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .btn:active { transform: scale(0.96); box-shadow: none; }
+        .btn.team-up { background-color: var(--primary-color); color: white; }
+        .btn.clear { background-color: var(--danger-color); color: white; }
+        .btn.clear.confirm { background-color: var(--warning-color); color: var(--text-color); }
+        
+        .settings-container { display: flex; flex-direction: column; gap: 1.5vh; margin-bottom: 2.5vh; }
+        .settings-panel { background: var(--card-bg); padding: 1.5vh 4vw; border-radius: var(--border-radius); box-shadow: var(--shadow); display: flex; justify-content: space-between; align-items: center; }
+        .settings-panel label { font-weight: 500; font-size: 14px; }
+        .switch { position: relative; display: inline-block; width: 44px; height: 24px; cursor: pointer; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; border-radius: 24px; transition: var(--transition-speed); }
+        .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; border-radius: 50%; transition: var(--transition-speed); }
+        input:checked + .slider { background-color: var(--success-color); }
+        input:checked + .slider:before { transform: translateX(20px); }
+        #themeSelector { -webkit-appearance: none; -moz-appearance: none; appearance: none; background-image: var(--arrow-down-icon); background-repeat: no-repeat; background-position: right 10px center; background-size: 12px; border: 1px solid #e0e0e0; border-radius: 10px; padding: 6px 25px 6px 10px; font-size: 14px; }
+        
+        .player-list { display: flex; flex-direction: column; gap: 1.5vh; flex-grow: 1; justify-content: center; }
+        .vs-separator { font-size: clamp(16px, 2.5vh, 20px); font-weight: bold; text-align: center; margin: 0; user-select: none; color: var(--team-a-primary); }
+
+        /* 核心布局优化：智能两行式卡片 */
+        .player-card {
+            background-color: var(--card-bg); border-radius: var(--border-radius); box-shadow: var(--shadow);
+            padding: 1.5vh 4vw;
+            transition: background-color var(--transition-speed);
+        }
+        .player-card.team-a { background-color: var(--team-a-bg); }
+        .player-card.team-b { background-color: var(--team-b-bg); }
+        .player-card-content { display: grid; gap: 0.5vh; }
+        
+        /* 第一行：排名头衔 */
+        .player-rank-title {
+            font-size: clamp(11px, 1.8vh, 13px); font-weight: bold; color: #7f8c8d;
+            grid-row: 1; grid-column: 1 / -1;
+        }
+        .player-rank-title.rank-1-title { color: var(--rank1-color); }
+        
+        /* 第二行：主要信息 */
+        .player-main-info {
+            grid-row: 2; grid-column: 1 / -1;
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        .player-identity { display: flex; align-items: center; gap: clamp(8px, 2vw, 12px); flex-shrink: 1; min-width: 0; }
+        .nemesis-icon { cursor: pointer; width: clamp(22px, 4.5vh, 26px); height: clamp(22px, 4.5vh, 26px); color: #ccc; transition: color var(--transition-speed), transform var(--transition-speed); flex-shrink: 0; }
+        .nemesis-icon.active { color: var(--nemesis-color); transform: scale(1.2); }
+        .player-name {
+            font-weight: 600; font-size: clamp(16px, 3vh, 20px);
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .player-name:focus { outline: none; text-overflow: clip; }
+        .player-name.shaking { animation: shake-name 0.4s ease-in-out; }
+        
+        .player-scoring { display: flex; align-items: center; gap: clamp(8px, 2vw, 12px); }
+        .score-btn {
+            width: clamp(32px, 6vh, 40px); height: clamp(32px, 6vh, 40px);
+            font-size: clamp(20px, 3.5vh, 26px); border-radius: 50%;
+            border: 1px solid #e0e0e0; background-color: transparent; color: var(--text-color);
+            cursor: pointer; transition: all 0.2s; display: inline-flex; justify-content: center; align-items: center;
+        }
+        .score-btn:active { background-color: #f0f0f0; transform: scale(0.95); }
+        .player-score {
+            font-weight: bold; font-size: clamp(24px, 5vh, 32px);
+            min-width: clamp(40px, 10vw, 60px); text-align: center;
+        }
+        .player-score.popping { animation: score-pop 0.3s ease; }
+
+        /* 修复：恢复统计弹窗的样式 */
+        .modal { position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; animation: fadeIn var(--transition-speed); }
+        .modal.hidden { display: none; }
+        .modal-content { background-color: var(--bg-color); border-radius: var(--border-radius); padding: 25px; width: 90%; max-width: 400px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .modal-title { font-size: 20px; font-weight: bold; margin: 0; }
+        .modal-close { font-size: 28px; font-weight: bold; cursor: pointer; color: #999; border: none; background: none; }
+        .modal-section-title { font-size: 18px; font-weight: 600; margin-top: 25px; margin-bottom: 10px; padding-bottom: 5px; border-bottom: 2px solid var(--primary-color); transition: border-color var(--transition-speed); }
+        .stats-list, .rank-list { list-style-type: none; padding: 0; margin: 0; }
+        .stats-list li, .rank-list li { display: flex; justify-content: space-between; align-items: center; padding: 12px 5px; border-bottom: 1px solid #e0e0e0; }
+        .stats-list li:last-child, .rank-list li:last-child { border-bottom: none; }
+        .stat-pair, .rank-name { font-weight: 500; }
+        .stat-percent, .rank-score { font-weight: bold; color: var(--primary-color); transition: color var(--transition-speed); }
+        .rank-list .rank-1 { background-color: var(--rank1-bg); border-radius: 10px; font-weight: bold; color: var(--rank1-color); }
+        .crown-icon { width: 22px; height: 22px; margin-right: 8px; vertical-align: -4px; fill: currentColor; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>榜一大哥诞生器</h1>
+        <div class="main-controls">
+            <button id="teamUpBtn" class="btn team-up">随机组队</button>
+            <button id="statsBtn" class="btn">统计&排行</button>
+            <button id="clearBtn" class="btn clear">清零重置</button>
+        </div>
+        <div class="settings-container">
+            <div class="settings-panel">
+                <label for="allowDuplicatesToggle">允许重复组队</label>
+                <label class="switch">
+                    <input type="checkbox" id="allowDuplicatesToggle" checked>
+                    <span class="slider"></span>
+                </label>
+            </div>
+            <div class="settings-panel">
+                <label for="themeSelector">队伍配色方案</label>
+                <select id="themeSelector"></select>
+            </div>
+        </div>
+        <div id="playerList" class="player-list"></div>
+    </div>
+    
+    <!-- 修复：恢复统计弹窗的完整HTML -->
+    <div id="statsModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">数据与排行</h2>
+                <button class="modal-close" id="closeStatsModal">&times;</button>
+            </div>
+            <div id="rankingsContainer">
+                <h3 class="modal-section-title">积分排行榜</h3>
+                <ul class="rank-list" id="rankList"></ul>
+            </div>
+            <div id="statsContainer">
+                <h3 class="modal-section-title">组队数据统计</h3>
+                <ul class="stats-list" id="statsList"></ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const root = document.documentElement;
+        const playerListEl = document.getElementById('playerList');
+        const teamUpBtn = document.getElementById('teamUpBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const statsBtn = document.getElementById('statsBtn');
+        const statsModal = document.getElementById('statsModal');
+        const closeStatsModalBtn = document.getElementById('closeStatsModal');
+        const allowDuplicatesToggle = document.getElementById('allowDuplicatesToggle');
+        const themeSelector = document.getElementById('themeSelector');
+        
+        let players = [];
+        let teamHistory = [];
+        let lastTeamComposition = null;
+        let isConfirmingClear = false;
+        let selectedThemeIndex = 0;
+
+        const STORAGE_KEYS = { players: 'scoreToolPlayers_v9', history: 'scoreToolHistory_v9', settings: 'scoreToolSettings_v9' };
+        const RANK_TITLES = ['榜一大哥大', '二当家', '三流混子', '好肆要花生'];
+        
+        const nemesisIconSVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C7.29 0 4.152 2.651 3 6.142c-1.123 3.42 0 10.858 9 17.858 9-7 10.123-14.438 9-17.858C19.848 2.651 16.71 0 12 0zm0 4.5c1.93 0 3.5 1.57 3.5 3.5s-1.57 3.5-3.5 3.5S8.5 9.93 8.5 8s1.57-3.5 3.5-3.5zm-2.586 9.414l5.172-5.172 1.414 1.414-5.172 5.172-1.414-1.414zm-2.586-2.586l5.172-5.172 1.414 1.414-5.172 5.172-1.414-1.414z"/></svg>`;
+        const crownIconSVG = `<svg class="crown-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="currentColor"><path d="M256 0c-26.5 0-48 21.5-48 48v32h-64c-26.5 0-48 21.5-48 48v32h-48c-26.5 0-48 21.5-48 48v224c0 26.5 21.5 48 48 48h448c26.5 0 48-21.5 48-48V208c0-26.5-21.5-48-48-48h-48v-32c0-26.5-21.5-48-48-48h-64V48c0-26.5-21.5-48-48-48H256zM96 240h32v128H96V240zm320 0h-32v128h32V240z"/></svg>`;
+        
+        const COLOR_PALETTES = [
+            { name: '经典 · 蓝绿', primary: '#3498db', a_bg: 'rgba(52, 152, 219, 0.1)', a_primary: '#3498db', b_bg: 'rgba(46, 204, 113, 0.1)', b_primary: '#2ecc71' },
+            { name: '日落 · 橙紫', primary: '#e67e22', a_bg: 'rgba(230, 126, 34, 0.1)', a_primary: '#e67e22', b_bg: 'rgba(155, 89, 182, 0.1)', b_primary: '#9b59b6' },
+            { name: '森林 · 棕绿', primary: '#785d49', a_bg: 'rgba(120, 93, 73, 0.15)', a_primary: '#785d49', b_bg: 'rgba(39, 174, 96, 0.1)', b_primary: '#27ae60' },
+            { name: '海洋 · 蓝青', primary: '#16a085', a_bg: 'rgba(22, 160, 133, 0.1)', a_primary: '#16a085', b_bg: 'rgba(41, 128, 185, 0.1)', b_primary: '#2980b9' },
+            { name: '炽热 · 红黄', primary: '#e74c3c', a_bg: 'rgba(231, 76, 60, 0.1)', a_primary: '#e74c3c', b_bg: 'rgba(241, 196, 15, 0.15)', b_primary: '#f1c40f' }
+        ];
+
+        function initializeApp() {
+            const savedPlayers = localStorage.getItem(STORAGE_KEYS.players);
+            const savedHistory = localStorage.getItem(STORAGE_KEYS.history);
+            const savedSettings = localStorage.getItem(STORAGE_KEYS.settings);
+
+            players = savedPlayers ? JSON.parse(savedPlayers) : [
+                { id: 1, name: '玩家 1', score: 0, team: null, isNemesis: false }, { id: 2, name: '玩家 2', score: 0, team: null, isNemesis: false },
+                { id: 3, name: '玩家 3', score: 0, team: null, isNemesis: false }, { id: 4, name: '玩家 4', score: 0, team: null, isNemesis: false },
+            ];
+            teamHistory = savedHistory ? JSON.parse(savedHistory) : [];
+            if (savedSettings) {
+                const settings = JSON.parse(savedSettings);
+                allowDuplicatesToggle.checked = settings.allowDuplicates ?? true;
+                selectedThemeIndex = settings.selectedThemeIndex || 0;
+            }
+            
+            COLOR_PALETTES.forEach((palette, index) => {
+                const option = document.createElement('option');
+                option.value = index; option.textContent = palette.name;
+                themeSelector.appendChild(option);
+            });
+            themeSelector.value = selectedThemeIndex;
+            
+            applyTheme(selectedThemeIndex);
+            renderAll();
+        }
+
+        function saveData() {
+            localStorage.setItem(STORAGE_KEYS.players, JSON.stringify(players));
+            localStorage.setItem(STORAGE_KEYS.history, JSON.stringify(teamHistory));
+            localStorage.setItem(STORAGE_KEYS.settings, JSON.stringify({ allowDuplicates: allowDuplicatesToggle.checked, selectedThemeIndex }));
+        }
+
+        function applyTheme(themeIndex) {
+            const theme = COLOR_PALETTES[themeIndex];
+            root.style.setProperty('--primary-color', theme.primary);
+            root.style.setProperty('--team-a-bg', theme.a_bg); root.style.setProperty('--team-a-primary', theme.a_primary);
+            root.style.setProperty('--team-b-bg', theme.b_bg); root.style.setProperty('--team-b-primary', theme.b_primary);
+            const arrowColor = theme.primary.replace('#', '%23');
+            const arrowSVG = `url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22${arrowColor}%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.4-5.4-13z%22%2F%3E%3C%2Fsvg%3E")`;
+            root.style.setProperty('--arrow-down-icon', arrowSVG);
+        }
+
+        function renderAll() {
+            playerListEl.innerHTML = '';
+            const sortedByScore = [...players].sort((a, b) => b.score - a.score);
+            const rankMap = new Map(sortedByScore.map((p, i) => [p.id, i]));
+            const teamA = players.filter(p => p.team === 'A'); const teamB = players.filter(p => p.team === 'B');
+            const noTeam = players.filter(p => !p.team).sort((a,b) => rankMap.get(a.id) - rankMap.get(b.id));
+            const orderedPlayers = [...teamA, ...teamB, ...noTeam];
+
+            let teamsRendered = 0;
+            orderedPlayers.forEach((player) => {
+                const teamClass = player.team ? `team-${player.team.toLowerCase()}` : '';
+                const rankIndex = rankMap.get(player.id);
+                const rankTitle = RANK_TITLES[rankIndex];
+                const rank1Class = rankIndex === 0 ? 'rank-1-title' : '';
+
+                if (player.team && teamsRendered === teamA.length && teamA.length > 0 && teamB.length > 0) {
+                    const vs = document.createElement('div'); vs.className = 'vs-separator'; vs.textContent = 'VS';
+                    playerListEl.appendChild(vs);
+                }
+                const playerCard = document.createElement('div');
+                playerCard.className = `player-card ${teamClass}`; playerCard.dataset.playerId = player.id;
+                playerCard.innerHTML = `
+                    <div class="player-card-content">
+                        <span class="player-rank-title ${rank1Class}">${rankTitle}</span>
+                        <div class="player-main-info">
+                            <div class="player-identity">
+                                <div class="nemesis-icon ${player.isNemesis ? 'active' : ''}" data-action="toggle-nemesis">${nemesisIconSVG}</div>
+                                <span class="player-name" contenteditable="true" spellcheck="false">${player.name}</span>
+                            </div>
+                            <div class="player-scoring">
+                                <button class="score-btn" data-action="minus">−</button>
+                                <span class="player-score">${player.score}</span>
+                                <button class="score-btn" data-action="plus">+</button>
+                            </div>
+                        </div>
+                    </div>`;
+                playerListEl.appendChild(playerCard);
+                if(player.team) teamsRendered++;
+            });
+            resetClearButtonState();
+        }
+
+        function randomizeTeams() {
+            teamUpBtn.disabled = true;
+            document.querySelectorAll('.player-name').forEach(el => el.classList.add('shaking'));
+            setTimeout(() => {
+                const nemeses = players.filter(p => p.isNemesis); let available = players.filter(p => !p.isNemesis);
+                let newTeamA_ids, newTeamB_ids;
+                do {
+                    let shuffled = [...available].sort(() => 0.5 - Math.random());
+                    let teamA = [], teamB = [];
+                    if (nemeses.length === 2) { teamA.push(nemeses[0]); teamB.push(nemeses[1]); } 
+                    else if (nemeses.length === 1) { teamA.push(nemeses[0]); }
+                    shuffled.forEach(p => (teamA.length < 2) ? teamA.push(p) : teamB.push(p));
+                    if (Math.random() > 0.5) [teamA, teamB] = [teamB, teamA];
+                    newTeamA_ids = teamA.map(p => p.id).sort(); newTeamB_ids = teamB.map(p => p.id).sort();
+                } while ( !allowDuplicatesToggle.checked && lastTeamComposition && (JSON.stringify(newTeamA_ids) === JSON.stringify(lastTeamComposition.a) || JSON.stringify(newTeamA_ids) === JSON.stringify(lastTeamComposition.b)) );
+
+                players.forEach(p => { p.team = null; if (newTeamA_ids.includes(p.id)) p.team = 'A'; if (newTeamB_ids.includes(p.id)) p.team = 'B'; });
+                lastTeamComposition = { a: newTeamA_ids, b: newTeamB_ids };
+                if (newTeamA_ids.length === 2 && newTeamB_ids.length === 2) { teamHistory.push([newTeamA_ids, newTeamB_ids].sort()); }
+                
+                document.querySelectorAll('.player-name').forEach(el => el.classList.remove('shaking'));
+                teamUpBtn.disabled = false;
+                saveAndRender();
+            }, 500);
+        }
+
+        function clearScores() {
+            if (!isConfirmingClear) {
+                isConfirmingClear = true; clearBtn.textContent = '确认重置?'; clearBtn.classList.add('confirm');
+                setTimeout(resetClearButtonState, 3000);
+            } else {
+                players.forEach(p => { p.score = 0; p.team = null; p.isNemesis = false; });
+                teamHistory = []; lastTeamComposition = null;
+                saveAndRender();
+            }
+        }
+        function resetClearButtonState() { isConfirmingClear = false; clearBtn.textContent = '清零重置'; clearBtn.classList.remove('confirm'); }
+        function toggleNemesis(playerId) {
+            const player = players.find(p => p.id === playerId); if (!player) return;
+            if (player.isNemesis) { player.isNemesis = false; } 
+            else if (players.filter(p => p.isNemesis).length < 2) { player.isNemesis = true; } 
+            else { alert('最多只能指定两名宿敌！'); return; }
+            saveAndRender();
+        }
+        function saveAndRender() { saveData(); renderAll(); }
+        
+        function calculateAndShowStats() {
+            const rankList = document.getElementById('rankList'); rankList.innerHTML = '';
+            const sortedByScore = [...players].sort((a, b) => b.score - a.score);
+            sortedByScore.forEach((player, index) => {
+                const li = document.createElement('li');
+                const rankName = `<span class="rank-name">${player.name}</span>`;
+                const rankScore = `<span class="rank-score">${player.score} 分</span>`;
+                if (index === 0 && player.score > 0) { li.className = 'rank-1'; li.innerHTML = `<span>${crownIconSVG}${rankName}</span> ${rankScore}`; } 
+                else { li.innerHTML = `${rankName} ${rankScore}`; }
+                rankList.appendChild(li);
+            });
+            const allPossiblePairs = [ [1,2], [1,3], [1,4], [2,3], [2,4], [3,4] ];
+            const pairCounts = {}; const totalTeamsFormed = teamHistory.length;
+            const statsList = document.getElementById('statsList'); statsList.innerHTML = '';
+            if (totalTeamsFormed === 0) { statsList.innerHTML = '<li>暂无组队数据，请先开始游戏。</li>'; return; }
+            allPossiblePairs.forEach(pair => { pairCounts[pair.join('-')] = 0; });
+            teamHistory.forEach(teams => teams.forEach(team => { const key = team.sort().join('-'); if (key in pairCounts) pairCounts[key]++; }));
+            allPossiblePairs.forEach(pair => {
+                const key = pair.join('-'); const count = pairCounts[key];
+                const percentage = ((count / totalTeamsFormed) * 100).toFixed(1);
+                const p1Name = players.find(p => p.id === pair[0]).name; const p2Name = players.find(p => p.id === pair[1]).name;
+                const li = document.createElement('li');
+                li.innerHTML = `<span class="stat-pair">${p1Name} & ${p2Name}</span><span class="stat-percent">${percentage}% (${count}次)</span>`;
+                statsList.appendChild(li);
+            });
+        }
+
+        function handleListClick(e) {
+            const target = e.target; const card = target.closest('.player-card'); if (!card) return;
+            const playerId = parseInt(card.dataset.playerId, 10);
+            const action = target.dataset.action || target.closest('[data-action]')?.dataset.action;
+            if (action) {
+                e.preventDefault();
+                if (action === 'toggle-nemesis') toggleNemesis(playerId);
+                else if (action === 'plus' || action === 'minus') {
+                    const player = players.find(p => p.id === playerId);
+                    const increment = action === 'plus' ? 1 : -1;
+                    if (player.team) {
+                        players.forEach(p => {
+                            if (p.team === player.team) p.score += increment;
+                            else if (p.team) p.score -= increment;
+                        });
+                    } else player.score += increment;
+                    saveAndRender();
+                    card.querySelector('.player-score').classList.add('popping');
+                    card.querySelector('.player-score').addEventListener('animationend', (ev) => ev.target.classList.remove('popping'), { once: true });
+                }
+            }
+        }
+        function handleNameChange(e) {
+            const nameEl = e.target; if (!nameEl.classList.contains('player-name')) return;
+            const card = nameEl.closest('.player-card'); const playerId = parseInt(card.dataset.playerId, 10);
+            const player = players.find(p => p.id === playerId);
+            const newName = nameEl.textContent.trim();
+            if (player && newName && player.name !== newName) { player.name = newName; saveData(); } 
+            else if (!newName) nameEl.textContent = player.name;
+        }
+
+        teamUpBtn.addEventListener('click', randomizeTeams);
+        clearBtn.addEventListener('click', clearScores);
+        playerListEl.addEventListener('click', handleListClick);
+        playerListEl.addEventListener('blur', handleNameChange, true);
+        allowDuplicatesToggle.addEventListener('change', saveData);
+        themeSelector.addEventListener('change', (e) => {
+            selectedThemeIndex = parseInt(e.target.value, 10);
+            applyTheme(selectedThemeIndex); saveAndRender();
+        });
+        
+        statsBtn.addEventListener('click', () => { calculateAndShowStats(); statsModal.classList.remove('hidden'); });
+        closeStatsModalBtn.addEventListener('click', () => statsModal.classList.add('hidden'));
+        statsModal.addEventListener('click', (e) => { if (e.target === statsModal) statsModal.classList.add('hidden'); });
+
+        initializeApp();
+    });
+    </script>
+</body>
+</html>
